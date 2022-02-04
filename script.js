@@ -1,192 +1,142 @@
-var gapikey = 'AIzaSyBnPMdBxusQZmmXOnxrHjEfpdTjgDI3xps';
- 
-$(function() {    
-    // call fancybox pluggin
-    $(".fancyboxIframe").fancybox({
-        maxWidth    : 900,
-        maxHeight    : 600,
-        fitToView    : false,
-        width        : '90%',
-        height        : '90%',
-        autoSize    : false,
-        closeClick    : false,
-        openEffect    : 'none',
-        closeEffect    : 'none',
-        iframe: {
-            scrolling : 'auto',
-            preload   : true
-        }
+$(document).ready(function () {
+  var $pagination = $("#pagination"),
+    totalRecords = 0,
+    records = [],
+    recPerPage = 0,
+    nextPageToken = "",
+    totalPages = 0;
+  var API_KEY = "AIzaSyDunnJ2Do7VeVnXLsRTg6ZlqNmlh2oaLMA";
+  var search = "";
+  var duration = "any";
+  var order = "relevance";
+  var beforedate = new Date().toISOString();
+  var afterdate = new Date().toISOString();
+  var maxResults=10;
+
+  $("#beforedate").val(beforedate)
+  $("#afterdate").val(afterdate)
+
+  $("#beforedate").change(function(){
+      beforedate = new Date(this.val()).toISOString()
+      $("#beforedate").val(beforedate)
+      afterdate = new Date(this.val()).toISOString()
+      $("#afterdate").val(afterdate)
+  })
+
+  $("#afterdate").change(function(){
+    afterdate = new Date(this.val()).toISOString()
+    $("#afterdate").val(afterdate)
+    beforedate = new Date(this.val()).toISOString()
+    $("#beforedate").val(beforedate)
+})
+
+  $("#duration").change(function () {
+    duration = $(this).children("option:selected").val();
+  });
+  $("#order").change(function () {
+    order = $(this).children("option:selected").val();
+  });
+
+  $("#myForm").submit(function (e) {
+    e.preventDefault();
+
+    search = $("#search").val();
+
+    //beforedate = new Date($("#beforedate").val()).toISOString();
+
+    //afterdate = new Date($("#beforedate").val()).toISOString();
+
+    console.log(beforedate);
+
+    API_KEY = "AIzaSyDunnJ2Do7VeVnXLsRTg6ZlqNmlh2oaLMA";
+
+    var url = `https://www.googleapis.com/youtube/v3/search?key=${API_KEY}
+        &part=snippet&q=${search}&maxResults=${maxResults}&publishedAfter=${afterdate}&publishedBefore=${beforedate}&order=${order}&videoDuration=${duration}&type=video`;
+
+    $.ajax({
+      method: "GET",
+      url: url,
+      beforeSend: function () {
+        $("#btn").attr("disabled", true);
+        $("#results").empty();
+      },
+      success: function (data) {
+        console.log(data);
+        $("#btn").attr("disabled", false);
+        displayVideos(data);
+      },
     });
-    
-    $('#search-form').submit( function(e) {
-        e.preventDefault();
+  });
+
+  function apply_pagination() {
+    $pagination.twbsPagination({
+      totalPages: totalPages,
+      visiblePages: 6,
+      onPageClick: function (event, page) {
+        console.log(event);
+        displayRecordsIndex = Math.max(page - 1, 0) * recPerPage;
+        endRec = displayRecordsIndex + recPerPage;
+        console.log(displayRecordsIndex + "ssssssssss" + endRec);
+        displayRecords = records.slice(displayRecordsIndex, endRec);
+        generateRecords(recPerPage, nextPageToken);
+      },
     });
+  }
+
+  $("#search").change(function () {
+    search = $("#search").val();
+  });
+
+  function generateRecords(recPerPage, nextPageToken) {
+    var url2 = `https://www.googleapis.com/youtube/v3/search?key=${API_KEY}
+    &part=snippet&q=${search}&maxResults=${maxResults}&pageToken=${nextPageToken}&publishedBefore=${beforedate}&publishedAfter=${afterdate}&order=${order}&videoDuration=${duration}&type=video`;
+
+    $.ajax({
+      method: "GET",
+      url: url2,
+      beforeSend: function () {
+        $("#btn").attr("disabled", true);
+        $("#results").empty();
+      },
+      success: function (data) {
+        console.log(data);
+        $("#btn").attr("disabled", false);
+        displayVideos(data);
+      },
+    });
+  }
+
+  function displayVideos(data) {
+    recPerPage = data.pageInfo.resultsPerPage;
+    nextPageToken = data.nextPageToken;
+    console.log(records);
+    totalRecords = data.pageInfo.totalResults;
+    totalPages = Math.ceil(totalRecords / recPerPage);
+    apply_pagination();
+    $("#search").val("");
+
+    var videoData = "";
+
+    $("#table").show();
+
+    data.items.forEach((item) => {
+      videoData = `
+                    
+                    <tr>
+                    <td>
+                    <a target="_blank" href="https://www.youtube.com/watch?v=${item.id.videoId}">
+                    ${item.snippet.title}</td>
+                    <td>
+                    <img width="200" height="200" src="${item.snippet.thumbnails.high.url}"/>
+                    </td>
+                    <td>
+                    <a target="_blank" href="https://www.youtube.com/channel/${item.snippet.channelId}">${item.snippet.channelTitle}</a>
+                    </td>
+                    </tr>
+
+                    `;
+
+      $("#results").append(videoData);
+    });
+  }
 });
- 
-function searchYoutubevideo() {
-    $('#results').html('<i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i><span class="sr-only">Loading...</span>');
-    $('#buttons').html('');
-    
-    // get form input
-    q = $('#search').val(); 
-    
-    // run get request on API
-    $.get(
-        "https://www.googleapis.com/youtube/v3/search", {
-            part: 'snippet, id',
-            q: q,
-            type: 'video',
-            key: gapikey
-        }, function(data) {
-            var nextPageToken = data.nextPageToken;
-            var prevPageToken = data.prevPageToken;
-            
-            // Log data
-            console.log(data);
-            $('#results').html(''); // hide loading
-            $.each(data.items, function(i, item) {
-                
-                // Get Output
-                var output = getOutput(item);
-                
-                // display results
-                $('#results').append(output);
-            });
-            
-            var buttons = getButtons(prevPageToken, nextPageToken);
-            
-            // Display buttons
-            $('#buttons').append(buttons);
-        });
-}
- 
-// Next page function
-function nextPage() {
-    var token = $('#next-button').data('token');
-    var q = $('#next-button').data('query');
-    
-    
-   // clear 
-    $('#results').html('<i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i><span class="sr-only">Loading...</span>');
-    $('#buttons').html('');
-    
-    // get form input
-    q = $('#search').val();
-    
-    // run get request on API
-    $.get(
-        "https://www.googleapis.com/youtube/v3/search", {
-            part: 'snippet, id',
-            q: q,
-            pageToken: token,
-            type: 'video',
-            key: gapikey
-        }, function(data) {
-            
-            var nextPageToken = data.nextPageToken;
-            var prevPageToken = data.prevPageToken;
-            
-            // Log data
-            console.log(data);
-            $('#results').html('');
-            $.each(data.items, function(i, item) {
-                
-                // Get Output
-                var output = getOutput(item);
-                
-                // display results
-                $('#results').append(output);
-            });
-            
-            var buttons = getButtons(prevPageToken, nextPageToken);
-            
-            // Display buttons
-            $('#buttons').append(buttons);
-        });    
-}
- 
-// Previous page function
-function prevPage() {
-    var token = $('#prev-button').data('token');
-    var q = $('#prev-button').data('query');
-    
-    
-   // clear 
-    $('#results').html('<i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i><span class="sr-only">Loading...</span>');
-    $('#buttons').html('');
-    
-    // get form input
-    q = $('#search').val();  // this probably shouldn't be created as a global
-    
-    // run get request on API
-    $.get(
-        "https://www.googleapis.com/youtube/v3/search", {
-            part: 'snippet, id',
-            q: q,
-            pageToken: token,
-            type: 'video',
-            key: gapikey
-        }, function(data) {
-            
-            var nextPageToken = data.nextPageToken;
-            var prevPageToken = data.prevPageToken;
-            
-            // Log data
-            console.log(data);
-            $('#results').html('');
-            $.each(data.items, function(i, item) {
-                
-                // Get Output
-                var output = getOutput(item);
-                
-                // display results
-                $('#results').append(output);
-            });
-            
-            var buttons = getButtons(prevPageToken, nextPageToken);
-            
-            // Display buttons
-            $('#buttons').append(buttons);
-        });    
-}
- 
-// Build output
-function getOutput(item) {
-    var videoID = item.id.videoId;
-    var title = item.snippet.title;
-    var description = item.snippet.description;
-    var thumb = item.snippet.thumbnails.high.url;
-    var channelTitle = item.snippet.channelTitle;
-    var videoDate = item.snippet.publishedAt;
-    
-    // Build output string
-    var output =        '<div class="col-md-6">' +
-                            '<img src="' + thumb + '" class="img-responsive thumbnail" >' +
-                        '</div>' +
-                        '<div class="input-group col-md-6">' +
-                            '<h3><a data-fancybox-type="iframe" class="fancyboxIframe" href="http://youtube.com/embed/' + videoID + '?rel=0">' + title + '</a></h3>' +
-                            '<small>By <span class="channel">' + channelTitle + '</span> on ' + videoDate + '</small>' +
-                            '<p>' + description + '</p>' +
-                        '</div>' +
-                    '<div class="clearfix"></div>';
-    return output;
-}
- 
-function getButtons(prevPageToken, nextPageToken) {
-    if(!prevPageToken) {
-        var btnoutput =     '<ul class="pagination">' +
-                                '<li><a href="javascript:;"  id="next-button" class="paging-button" data-token="' + nextPageToken + '" data-query="' + q + '"' +
-                                    'onclick = "nextPage();">Next &raquo;</a></li>' +
-                            '</ul>';
-    } else {
-        var btnoutput =     '<ul class="pagination">' +
-                                '<li><a href="javascript:;" id="prev-button" class="paging-button" data-token="' + prevPageToken + '" data-query="' + q + '"' +
-                                    'onclick = "prevPage();">&laquo; Previous</a></li>' +            
-                                '<li><a href="javascript:;" id="next-button" class="paging-button" data-token="' + nextPageToken + '" data-query="' + q + '"' +
-                                    'onclick = "nextPage();">Next &raquo;</a></li>' +
-                            '</ul>';        
-    }
-    
-    return btnoutput;
-}
- 
